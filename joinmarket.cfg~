@@ -1,0 +1,114 @@
+
+[BLOCKCHAIN]
+blockchain_source = bitcoin-rpc
+#options: blockr, bitcoin-rpc, regtest
+# for instructions on bitcoin-rpc read
+# https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
+network = testnet
+rpc_host = localhost
+rpc_port = 18332
+rpc_user = bitcoinrpc
+rpc_password = SGOxOvFaNjxxqdgwpZZKArMID1JyjTzwzi7LFLQcebK5SCwBKKRLfffFdwQZcJXBksYnFmNbSERELGFFYLiVZgPiABAIbCSiN5zLA008Hrt21V7ggOih6QFuNkopNOFCnpkOO9phIvPYkABKorvUIHUdPvSE3AUJ
+
+[MESSAGING]
+host = irc.freenode.net
+channel = joinmarket-pit-ak
+port = 6697
+usessl = true
+socks5 = false
+socks5_host = localhost
+socks5_port = 9050
+#for tor
+#host = 6dvj6v5imhny3anf.onion, cfyfz6afpgfeirst.onion
+#onion / i2p have their own ports on CGAN
+#port = 6698, 6667
+#usessl = true, false
+#socks5 = true, true
+
+[LOGGING]
+# Set the log level for the output to the terminal/console
+# Possible choices: DEBUG / INFO / WARNING / ERROR
+# Log level for the files in the logs-folder will always be DEBUG
+console_log_level = DEBUG
+
+[TIMEOUT]
+maker_timeout_sec = 45
+unconfirm_timeout_sec = 90
+confirm_timeout_hours = 6
+
+[POLICY]
+# for dust sweeping, try merge_algorithm = gradual
+# for more rapid dust sweeping, try merge_algorithm = greedy
+# for most rapid dust sweeping, try merge_algorithm = greediest
+# but don't forget to bump your miner fees!
+merge_algorithm = default
+# For takers: the minimum number of makers you allow in a transaction
+# to complete, accounting for the fact that some makers might not be
+# responsive. Should be an integer >=2 for privacy, or set to 0 if you
+# want to disallow any reduction from your chosen number of makers.
+minimum_makers = 2
+# the fee estimate is based on a projection of how many satoshis
+# per kB are needed to get in one of the next N blocks, N set here
+# as the value of 'tx_fees'. This estimate is high if you set N=2,
+# so we choose N=3 for a more reasonable figure,
+# as our default. Note that for clients not using a local blockchain
+# instance, we retrieve an estimate from the API at blockcypher.com, currently.
+# WARNING: Configuring N=1 can have unexpected effects, as bitcoin core
+# sometimes responds with -1 when it can't make a precise fee estimate!
+# Thus, N should almost always be >= 2, unless you know what you're doing.
+tx_fees = 3
+# For users getting transaction fee estimates over an API
+# (currently blockcypher, could be others), place a sanity
+# check limit on the satoshis-per-kB to be paid. This limit
+# is also applied to users using Core, even though Core has its
+# own sanity check limit, which is currently 1,000,000 satoshis.
+absurd_fee_per_kb = 150000
+# the range of confirmations passed to the `listunspent` bitcoind RPC call
+# 1st value is the inclusive minimum, defaults to one confirmation
+# 2nd value is the exclusive maximum, defaults to most-positive-bignum (Google Me!)
+# leaving it unset or empty defers to bitcoind's default values, ie [1, 9999999]
+#listunspent_args = []
+# that's what you should do, unless you have a specific reason, eg:
+#  !!! WARNING !!! CONFIGURING THIS WHILE TAKING LIQUIDITY FROM
+#  !!! WARNING !!! THE PUBLIC ORDERBOOK LEAKS YOUR INPUT MERGES
+#  spend from unconfirmed transactions:  listunspent_args = [0]
+# display only unconfirmed transactions: listunspent_args = [0, 1]
+# defend against small reorganizations:  listunspent_args = [3]
+#   who is at risk of reorganization?:   listunspent_args = [0, 2]
+# NB: using 0 for the 1st value with scripts other than wallet-tool could cause
+# spends from unconfirmed inputs, which may then get malleated or double-spent!
+# other counterparties are likely to reject unconfirmed inputs... don't do it.
+
+#options: self, random-peer, not-self, random-maker
+# self = broadcast transaction with your own ip
+# random-peer = everyone who took part in the coinjoin has a chance of broadcasting
+# not-self = never broadcast with your own ip
+# random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
+tx_broadcast = self
+
+#THE FOLLOWING SETTINGS ARE REQUIRED TO DEFEND AGAINST SNOOPERS.
+#DON'T ALTER THEM UNLESS YOU UNDERSTAND THE IMPLICATIONS.
+
+# number of retries allowed for a specific utxo, to prevent DOS/snooping.
+# Lower settings make snooping more expensive, but also prevent honest users
+# from retrying if an error occurs.
+taker_utxo_retries = 250
+
+# number of confirmations required for the commitment utxo mentioned above.
+# this effectively rate-limits a snooper.
+taker_utxo_age = 1
+
+# percentage of coinjoin amount that the commitment utxo must have
+# as a minimum BTC amount. Thus 20 means a 1BTC coinjoin requires the
+# utxo to be at least 0.2 btc.
+taker_utxo_amtpercent = 20
+
+#Set to 1 to accept broadcast PoDLE commitments from other bots, and
+#add them to your blacklist (only relevant for Makers).
+#There is no way to spoof these values, so the only "risk" is that
+#someone fills your blacklist file with a lot of data.
+accept_commitment_broadcasts = 1
+
+#Location of your commitments.json file (stores commitments you've used
+#and those you want to use in future), relative to root joinmarket directory.
+commit_file_location = cmttools/commitments.json

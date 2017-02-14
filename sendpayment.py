@@ -155,7 +155,7 @@ class PaymentThread(threading.Thread):
                 self.taker.amount, self.taker.makercount)
             if not orders:
                 log.error(
-                    'ERROR not enough liquidity in the orderbook, exiting')
+                    '(sendpayment) ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.amount + total_cj_fee + \
 	        self.taker.txfee*self.taker.makercount

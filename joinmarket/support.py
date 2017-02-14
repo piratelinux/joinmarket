@@ -5,6 +5,9 @@ import sys
 import logging
 import pprint
 import random
+import os
+import json
+import re
 
 from decimal import Decimal
 
@@ -19,6 +22,8 @@ from math import exp
 
 log = logging.getLogger('joinmarket')
 log.setLevel(logging.DEBUG)
+
+script_dir = os.path.dirname(__file__)
 
 ORDER_KEYS = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee',
               'cjfee']
@@ -247,8 +252,11 @@ def pick_order(orders, n):
 
 
 def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
+    log.debug("choose orders: cj_amount: "+str(cj_amount)+", n:"+str(n))
     if ignored_makers is None:
         ignored_makers = []
+    else:
+        log.debug("have ignored makers: "+str(len(ignored_makers)))
     sqlorders = db.execute(
         'SELECT * FROM orderbook WHERE minsize <= :cja AND :cja <= maxsize;',
         {'cja': cj_amount}).fetchall()
@@ -357,6 +365,7 @@ def choose_sweep_orders(db,
         for i in range(n - len(chosen_orders)):
             if len(orders_fees) < n - len(chosen_orders):
                 log.error('ERROR not enough liquidity in the orderbook')
+                log.debug('len(orders_fees): '+len(orders_fees)+' n: '+n+' len(chosen_orders): '+len(chosen_orders))
                 # TODO handle not enough liquidity better, maybe an Exception
                 return None, 0, 0
             chosen_order, chosen_fee = chooseOrdersBy(orders_fees, n)
@@ -385,7 +394,11 @@ def debug_dump_object(obj, skip_fields=None):
     if skip_fields is None:
         skip_fields = []
     log.debug('Class debug dump, name:' + obj.__class__.__name__)
-    for k, v in obj.__dict__.iteritems():
+    if type(obj) is dict:
+        iteritems = obj.iteritems()
+    else:
+        iteritems = obj.__dict__.iteritems()
+    for k, v in iteritems:
         if k in skip_fields:
             continue
         if k == 'password' or k == 'given_password':
@@ -398,3 +411,56 @@ def debug_dump_object(obj, skip_fields=None):
             log.debug(pprint.pformat(v))
         else:
             log.debug(str(v))
+
+def dump_object_to_file(obj,filename,skip_fields=None):
+    if skip_fields is None:
+        skip_fields = []
+    f = open(filename,"w")
+    for k, v in obj.__dict__.iteritems():
+        if k in skip_fields:
+            continue
+        if k == 'password' or k == 'given_password':
+            continue
+        f.write('key=' + k+'\n')
+        if isinstance(v, str):
+            f.write('string: len:' + str(len(v))+'\n')            
+            f.write(v+'\n')
+        elif isinstance(v, dict) or isinstance(v, list):
+            f.write(pprint.pformat(v)+'\n')
+        else:
+            f.write(str(v)+'\n')
+    f.close()
+    
+def save_session_to_file (tumbler,wallet_file,destaddrs,filename):
+    if not os.path.exists(os.path.dirname(filename)):
+        try:
+            os.makedirs(os.path.dirname(filename))
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
+    f = open(filename,"w")
+    f.write('{"options":')
+    f.write(json.dumps(tumbler.options)+',\n')
+    f.write('"wallet": "'+wallet_file+'",\n')
+    f.write('"destaddrs":')
+    f.write(json.dumps(destaddrs)+',\n')
+    f.write('"tx_list":')
+    f.write(json.dumps(tumbler.tx_list)+',\n')
+    f.write('"next_tx": 0}\n')
+    f.close()
+
+#def update_session_wallet (wallet,filename):
+
+def update_session_tx_confirmed (sessionname,i_tx):
+    sessionfilename = os.path.join(script_dir,'../sessions/'+sessionname)
+    if os.path.isfile(sessionfilename):
+        log.debug("update session tx confirmed "+sessionname+" "+str(i_tx))
+        with open(sessionfilename, "r") as sources:
+            lines = sources.readlines()
+            with open(sessionfilename, "w") as sources:
+                for line in lines:
+                    log.debug('line: '+line+'\n')
+                    if re.match(r'^["]next_tx["][:][ ][0-9]',line):
+                        log.debug('re matched')
+                    sources.write(re.sub(r'^["]next_tx["][:][ ][0-9]', '"next_tx": '+str(i_tx+1),line))
+

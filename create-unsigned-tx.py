@@ -70,7 +70,7 @@ class PaymentThread(threading.Thread):
                 self.taker.cjamount, self.taker.options.makercount)
             if not orders:
                 log.error(
-                    'ERROR not enough liquidity in the orderbook, exiting')
+                    '(create unsigned) ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.cjamount + total_cj_fee + \
                            self.taker.options.txfee

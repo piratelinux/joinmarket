@@ -3,6 +3,8 @@ from __future__ import absolute_import, print_function
 import copy
 import sys
 import threading
+import os
+import json
 
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
@@ -19,6 +21,8 @@ from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     debug_dump_object, get_irc_mchannels
 from joinmarket import Wallet
 from joinmarket.wallet import estimate_tx_fee
+from joinmarket.support import save_session_to_file, update_session_tx_confirmed
+script_dir = os.path.dirname(__file__)
 
 log = get_log()
 
@@ -178,6 +182,7 @@ class TumblerThread(threading.Thread):
         if active_nicks is None:
             active_nicks = []
         self.ignored_makers += nonrespondants
+        log.debug("tumbler_choose_orders n ignored_makers = "+str(len(self.ignored_makers))+'n nonrespondants = '+str(len(nonrespondants)))
         while True:
             orders, total_cj_fee = choose_orders(
                     self.taker.db, cj_amount, makercount, weighted_order_choose,
@@ -335,6 +340,7 @@ class TumblerThread(threading.Thread):
         with self.lockcond:
             self.lockcond.wait()
         log.info('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
+        update_session_tx_confirmed(self.taker.options['sessionname'],self.current_tx)
         time.sleep(tx['wait'] * 60)
         log.info('woken')
 
@@ -344,23 +350,25 @@ class TumblerThread(threading.Thread):
 
         sqlorders = self.taker.db.execute(
                 'SELECT cjfee, ordertype FROM orderbook;').fetchall()
-        orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'reloffer']
+        orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'absoffer']
         orders = sorted(orders)
         if len(orders) == 0:
             log.error('There are no orders at all in the orderbook! '
                       'Is the bot connecting to the right server?')
             return
-        relorder_fee = float(orders[0])
-        log.info('reloffer fee = ' + str(relorder_fee))
+        absorder_fee = float(orders[0])
+        log.info('absoffer fee = ' + str(absorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
         log.info('uses ' + str(maker_count) + ' makers, at ' + str(
-                relorder_fee * 100) + '% per maker, estimated total cost ' + str(
-                round((1 - (1 - relorder_fee) ** maker_count) * 100, 3)) + '%')
+                absorder_fee) + '% per maker')
         log.info('starting')
         self.lockcond = threading.Condition()
 
         self.balance_by_mixdepth = {}
+        tx_start = self.taker.options['tx_start']
         for i, tx in enumerate(self.taker.tx_list):
+            if i < tx_start:
+                continue
             if tx['srcmixdepth'] not in self.balance_by_mixdepth:
                 self.balance_by_mixdepth[tx[
                     'srcmixdepth']] = self.taker.wallet.get_balance_by_mixdepth(
@@ -551,17 +559,52 @@ def main():
                       default=False,
                       help=('choose to do fast wallet sync, only for Core and '
                       'only for previously synced wallet'))
+    parser.add_option('-n',
+                      type='string',
+                      dest='sessionname',
+                      default=None,
+                      help=
+                      'optional session name so that you can restore your tumbling plan if it halts')
     (options, args) = parser.parse_args()
     options = vars(options)
 
     if len(args) < 1:
         parser.error('Needs a wallet file')
         sys.exit(0)
-    wallet_file = args[0]
-    destaddrs = args[1:]
-    print(destaddrs)
 
-    load_program_config()
+    sessionname = options['sessionname']
+    loaded_session = None
+    if sessionname:
+        sessionfilename = os.path.join(script_dir,'sessions/'+sessionname)
+        if os.path.isfile(sessionfilename):
+            print('Loaded session '+sessionname+' with filename '+sessionfilename)
+            with open(sessionfilename) as data_file:
+                loaded_session = json.load(data_file)
+            if loaded_session:
+                options = loaded_session['options']
+                for k, v in options.iteritems():
+                    if type(v) is list:
+                        options[k] = tuple(v)
+                    elif isinstance(v, unicode):
+                        options[k] = str(v)
+                    if isinstance(k,unicode):
+                        options[str(k)] = options.pop(k)
+                wallet_file = loaded_session['wallet']
+                if isinstance(wallet_file,unicode):
+                    wallet_file = str(wallet_file)
+                destaddrs = loaded_session['destaddrs']
+                for i_addr in range(len(destaddrs)):
+                    if isinstance(destaddrs[i_addr],unicode):
+                        destaddrs[i_addr] = str(destaddrs[i_addr])
+                load_program_config()        
+                #debug_dump_object(loaded_session)
+                #sys.exit(0)
+
+    if not loaded_session:
+        wallet_file = args[0]
+        destaddrs = args[1:]
+        load_program_config()
+    print(destaddrs)
 
     #The minmakercount setting should not be lower than the
     #minimum allowed makers according to the config
@@ -602,7 +645,20 @@ def main():
         options['donateamount'] = 0.9
 
     print(str(options))
-    tx_list = generate_tumbler_tx(destaddrs, options)
+    if loaded_session:
+        tx_list = loaded_session['tx_list']
+        for i_tx in range(len(tx_list)):
+            tx_dict = tx_list[i_tx]
+            for k, v in tx_dict.iteritems():
+                if isinstance(v,unicode):
+                    tx_dict[k] = str(v)
+                if isinstance(k,unicode):
+                    tx_dict[str(k)] = tx_dict.pop(k)
+        options['tx_start'] = loaded_session['next_tx']
+            
+    else:
+        tx_list = generate_tumbler_tx(destaddrs, options)
+        options['tx_start'] = 0
     if not tx_list:
         return
 
@@ -658,6 +714,9 @@ def main():
     mcc = MessageChannelCollection(mcs)
     log.info('starting tumbler')
     tumbler = Tumbler(mcc, wallet, tx_list, options)
+    if sessionname and not loaded_session:
+        save_session_to_file(tumbler,wallet_file,destaddrs,sessionfilename)
+        #update_session_wallet(wallet,sessionfilename)
     try:
         log.info('connecting to message channels')
         mcc.run()

@@ -88,7 +88,7 @@ blockchain_source = blockr
 #options: blockr, bitcoin-rpc, regtest
 # for instructions on bitcoin-rpc read
 # https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
-network = mainnet
+network = testnet
 rpc_host = localhost
 rpc_port = 8332
 rpc_user = bitcoin

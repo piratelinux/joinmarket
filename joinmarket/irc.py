@@ -15,7 +15,7 @@ from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
 
-MAX_PRIVMSG_LEN = 450
+MAX_PRIVMSG_LEN = 400
 PING_INTERVAL = 300
 PING_TIMEOUT = 60
 
@@ -33,7 +33,7 @@ PING_TIMEOUT = 60
 #2000/2 / 10 / 400
 #450/4 / 10 / 475
 MSG_INTERVAL = 0.001
-B_PER_SEC = 450
+B_PER_SEC = 400
 B_PER_SEC_INTERVAL = 4.0
 
 log = get_log()
@@ -103,6 +103,7 @@ class ThrottleThread(threading.Thread):
                         #this code *should* be unreachable.
                         continue
                 try:
+                    log.debug("socket send: "+throttled_msg+'\r\n')
                     self.irc.sock.sendall(throttled_msg+'\r\n')
                     last_msg_time = time.time()
                     self.msg_buffer.append((throttled_msg, last_msg_time))
@@ -222,6 +223,7 @@ class IRCMessageChannel(MessageChannel):
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             if m == message_chunks[0]:
                 m = COMMAND_PREFIX + cmd + ' ' + m
+            log.debug("send raw "+header + m + trailer)
             self.send_raw(header + m + trailer, ob)
 
     def change_nick(self, new_nick):
@@ -234,8 +236,10 @@ class IRCMessageChannel(MessageChannel):
         if line.startswith("PING") or line.startswith("PONG"):
             self.pingQ.put(line)
         elif ob:
-                self.obQ.put(line)
+            log.debug("ob true")
+            self.obQ.put(line)
         else:
+            log.debug("throttleq")
             self.throttleQ.put(line)
         self.lockthrottle.acquire()
         self.lockthrottle.notify()
@@ -341,8 +345,8 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw(
                 'MODE ' + self.nick + ' -R')  # allows unreg'd private messages
         elif _chunks[1] == '366':  # end of names list
-            log.info("Connected to IRC and joined channel on %s " %
-                (self.hostid))
+            log.info("Connected to IRC and joined channel %s on %s " %
+                (self.channel,self.hostid))
             if self.on_welcome:
                 self.on_welcome(self) #informs mc-collection that we are ready for use
         elif _chunks[1] == '332' or _chunks[1] == 'TOPIC':  # channel topic
@@ -433,6 +437,7 @@ class IRCMessageChannel(MessageChannel):
                 self.nick = self.given_nick
                 self.send_raw('NICK ' + self.nick)
                 while 1:
+                    log.debug("check line")
                     try:
                         line = self.fd.readline()
                     except AttributeError as e:

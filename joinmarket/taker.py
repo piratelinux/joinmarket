@@ -82,10 +82,12 @@ class CoinJoinTX(object):
         self.crypto_boxes = {}
         if not self.get_commitment(input_utxos, self.cj_amount):
             return
+        log.debug("fill orders "+str(len(self.active_orders))+" "+str(self.cj_amount)+" "+str(self.kp.hex_pk())+" "+str(self.commitment))
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
                                  self.kp.hex_pk(), self.commitment)
 
     def get_commitment(self, utxos, amount):
+        log.debug("get commitment for n utxos "+str(len(utxos))+" amount "+str(amount))
         """Create commitment to fulfil anti-DOS requirement of makers,
         storing the corresponding reveal/proof data for next step.
         """

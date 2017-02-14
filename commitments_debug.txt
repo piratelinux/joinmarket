@@ -1,0 +1,19 @@
+THIS IS A TEMPORARY FILE FOR DEBUGGING; IT CAN BE SAFELY DELETED ANY TIME.
+***
+1: Utxos that passed age and size limits, but have been used too many times (see taker_utxo_retries in the config):
+2006ee2d9360816d958a03300b34213be55ea70426a25d261840f2fa22f46cd6:0
+2: Utxos that have less than 5 confirmations:
+None
+3: Utxos that were not at least 20% of the size of the coinjoin amount 8000000
+None
+***
+Utxos that appeared in item 1 cannot be used again.
+Utxos only in item 2 can be used by waiting for more confirmations, (set by the value of taker_utxo_age).
+Utxos only in item 3 are not big enough for this coinjoin transaction, set by the value of taker_utxo_amtpercent.
+If you cannot source a utxo from your wallet according to these rules, use the tool add-utxo.py to source a utxo external to your joinmarket wallet. Read the help with 'python add-utxo.py --help'
+
+You can also reset the rules in the joinmarket.cfg file, but this is generally inadvisable.
+***
+For reference, here are the utxos in your wallet:
+
+{u'2006ee2d9360816d958a03300b34213be55ea70426a25d261840f2fa22f46cd6:0': {'value': 10000000, 'address': u'moGotyJjUEtCNCYqQTCDEjtqvvNXQNaWTs'}}

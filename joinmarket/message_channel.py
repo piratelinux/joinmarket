@@ -801,7 +801,9 @@ class MessageChannel(object):
         for c, order in nick_order_dict.iteritems():
             msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
             msg += ' ' + commitment
+            log.debug("fill message to "+c+": "+msg)
             self.privmsg(c, 'fill', msg)
+            
 
     def send_auth(self, nick, cr):
         self.privmsg(nick, 'auth', str(cr))
@@ -857,6 +859,8 @@ class MessageChannel(object):
         sig = btc.ecdsa_sign(msg_to_be_signed, self.nick_priv)
         message += ' ' + self.nick_pubkey + ' ' + sig
         #forward to the implementation class (use single _ for polymrphsm to work)
+        log.debug('>>privmsg with sig on %s: ' %
+                                    (self.hostid) + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
         self._privmsg(nick, cmd, message)
 
     def on_pubmsg(self, nick, message):
